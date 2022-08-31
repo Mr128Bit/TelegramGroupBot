@@ -11,6 +11,7 @@ import captcha
 import menus
 import config
 import database
+from enums import *
 from captcha import CaptchaType,CaptchaPunishment
 from enum import Enum
 from datetime import datetime, timedelta
@@ -89,13 +90,6 @@ class Form(StatesGroup):
     captcha_text = State() 
     captcha_button_text = State() 
 
-
-class NextStep(Enum):
-    CHANGE_CAPTCHA_TEXT = "CHANGE_CAPTCHA"
-    CHANGE_BUTTON_TEXT = "CHANGE_BUTTON_TEXT"
-    CHANGE_WELCOME_TEXT = "CHANGE_WELCOME_TEXT"
-
-
 async def setup_config_sync_task(sleep):
     while True:
         print(config.get())
@@ -132,6 +126,25 @@ async def increase_joins(gid):
                 raid_detection[gid][0] = raid_detection[gid][0] + 1
         else:
             raid_detection[gid] = [1, now]
+
+def get_message(gid, template: MessageTemplate):
+    
+    lang = Language.ENGLISH
+
+    templates = CONFIG.get("message_templates")
+    templates_by_lang = templates.get
+
+    message = None
+
+    if templates and lang.value in templates:
+        
+        templates_by_lang = templates.get(lang.value)
+
+        if template.value in templates_by_lang:
+
+            message = templates_by_lang.get(template.value)
+
+    return message
 
 async def is_bot_admin(chatid):
     bot_id = await bot.get_me()
@@ -567,7 +580,10 @@ async def help_command(message: types.Message):
         """
         msg = await bot.send_message(gid, help_text, parse_mode=ParseMode.MARKDOWN)
         asyncio.create_task(delete_message(msg, 30))
-        await message.delete()
+        try:
+            await message.delete()
+        except MessageCantBeDeleted as e:
+            await bot.send_message(gid, "I am not admin of this group ;c")
 
 @dispatcher.message_handler(commands=['reload'])
 async def reload_command(message: types.Message):
@@ -815,10 +831,11 @@ async def change_captcha_button_text_second_callback(message: Message, state: FS
     uid = message.from_user.id
     text = message.text
     gid = current_config[message.from_user.id]
+    reply = get_message(gid, MessageTemplate.CAPTCHA_BUTTON_TEXT_CHANGED_TEMPALTE)
 
     await set_captcha_button_text(int(gid), text)
     await state.finish()
-    await bot.send_message(uid, "Captcha button text has been changed!")
+    await bot.send_message(uid, reply)
 
 
 @dispatcher.message_handler(state=Form.captcha_text)
@@ -827,9 +844,11 @@ async def change_captcha_text_second_callback (message: Message, state: FSMConte
     text = message.text
     gid = current_config[message.from_user.id]
 
+    reply = get_message(gid, MessageTemplate.CAPTCHA_TEXT_CHANGED_TEMPALTE)
+
     await config.set_captcha_text(int(gid), text)
     await state.finish()
-    await bot.send_message(uid, "Captcha text has been changed!")
+    await bot.send_message(uid, reply)
 
 @dispatcher.callback_query_handler(set_punishment_cb.filter())
 async def set_punishment_callback (cquery: CallbackQuery, callback_data: dict):
@@ -850,7 +869,7 @@ async def set_captcha_type_callback(cquery: CallbackQuery, callback_data: dict):
 
     config.set_captcha_type(gid, CaptchaType(int(callback_data["type"])))
 
-    msg_text = "Choose a captcha method:"
+    msg_text =  get_message(gid, CONFIG_CAPTCHA_TYPE_HEADER_TEMPLATE)
     captcha_type = config.get_captcha_type(gid)
     menu = await menus.get_captcha_type_menu(gid, "", set_captcha_type_cb, bot_config_callback, single_callback, captcha_type)
     await cquery.answer()
@@ -861,7 +880,9 @@ async def captcha_type_menu_open(cquery: CallbackQuery, callback_data: dict) -> 
     gid = int(callback_data["gid"])
     title = callback_data["group_title"]
     message = cquery.message
-    msg_text = f"Configuration of group <b>{title}</b>\n\nModule: Captcha|Symbols"
+
+    module_name = get_message(gid, MessageTemplate.CAPTCHA_MENU_TEMPLTE)
+    msg_text = get_message(gid, MessageTemplate.CONFIG_MENU_MODULE_HEADER_TEMPLATE) % (title, module_name)
 
     captcha_type = config.get_captcha_type(gid) 
     menu = await menus.get_captcha_type_menu(gid, title, set_captcha_type_cb, bot_config_callback, single_callback, captcha_type)
@@ -875,7 +896,10 @@ async def captcha_toggle_callback(cquery: CallbackQuery, callback_data: dict) ->
     gid = int(callback_data["gid"])
     title = callback_data["group_title"]
     message = cquery.message
-    msg_text = f"Configuration of group <b>{title}</b>\n\nModule: Captcha"
+
+    module_name = get_message(gid, MessageTemplate.CAPTCHA_MENU_TEMPLTE)
+
+    msg_text = get_message(gid, MessageTemplate.CONFIG_MENU_MODULE_HEADER_TEMPLATE) % (title, module_name)
 
     config.toggle_captcha(gid)
     menu = await menus.get_captcha_menu(gid, bot_config_callback, single_callback, CONFIG)
@@ -889,7 +913,10 @@ async def captcha_menu_open_callback(cquery: CallbackQuery, callback_data: dict)
     gid = int(callback_data["gid"])
     title = callback_data["group_title"]
     message = cquery.message
-    msg_text = f"Configuration of group <b>{title}</b>\n\nModule: Captcha"
+
+    module_name = get_message(gid, MessageTemplate.CAPTCHA_MENU_TEMPLTE)
+
+    msg_text = get_message(gid, MessageTemplate.CONFIG_MENU_MODULE_HEADER_TEMPLATE) % (title, module_name)
     captcha_enabled = config.captcha_enabled(gid)
     menu = await menus.get_captcha_menu(gid, bot_config_callback, single_callback, captcha_enabled)
     await cquery.answer()
@@ -900,18 +927,21 @@ async def captcha_menu_open_callback(cquery: CallbackQuery, callback_data: dict)
 async def toggle_raidmode_callback(cquery: CallbackQuery, callback_data: dict) -> None:
 
     gid = int(callback_data["gid"])
+    title = callback_data["group_title"]
+
     if gid not in auto_raid_toggle_blocked:
         message = cquery.message
         raidmode = is_in_raidmode(gid)
 
         asyncio.create_task(block_toggle_raidmode(gid))
-        text = "Configuration of group " + callback_data["group_title"] 
-        
+
+        text = get_message(gid, MessageTemplate.CONFIG_MENU_HEADER_TEMPLATE) % (title)
+
         if raidmode:
             await deactivate_raidmode(gid, 0)
         else:
             await activate_raidmode(gid)
-        menu = await get_raidmode_menu(gid, callback_data["group_title"])
+        menu = await get_raidmode_menu(gid, title)
 
         await message.edit_text(text, reply_markup=menu)
     await cquery.answer()
@@ -920,19 +950,21 @@ async def toggle_raidmode_callback(cquery: CallbackQuery, callback_data: dict) -
 @dispatcher.callback_query_handler(bot_config_callback.filter(action="toggle_autoraid"))
 async def auto_raidmode_menu_callback(cquery: CallbackQuery, callback_data: dict):
     gid = int(callback_data["gid"])
+    title = callback_data["group_title"] 
 
     if gid not in auto_raid_toggle_blocked:
         message = cquery.message
         auto_raid_mode = config.autoraid_enabled(gid)
         asyncio.create_task(block_toggle_raidmode(gid))
-        text = "Configuration of group " + callback_data["group_title"] 
+
+        text = get_message(gid, MessageTemplate.CONFIG_MENU_HEADER_TEMPLATE) % (title)
 
         if auto_raid_mode:
             config.disable_auto_raid(gid)
         else:
             config.enable_auto_raid(gid)
 
-        menu = await get_raidmode_menu(gid, callback_data["group_title"])
+        menu = await get_raidmode_menu(gid, title)
 
         await message.edit_text(text, reply_markup=menu)
     await cquery.answer()
@@ -941,9 +973,12 @@ async def auto_raidmode_menu_callback(cquery: CallbackQuery, callback_data: dict
 @dispatcher.callback_query_handler(bot_config_callback.filter(action="config_raidmode"))
 async def raidmode_menu_callback(cquery: CallbackQuery, callback_data: dict) -> None:
     message = cquery.message
+    
+    title =  callback_data["group_title"] 
 
-    text = "Configuration of group " + callback_data["group_title"] 
-    menu = await get_raidmode_menu(int(callback_data['gid']), callback_data["group_title"])
+    text = get_message(message.chat.id, MessageTemplate.CONFIG_MENU_HEADER_TEMPLATE)  % (title)
+    
+    menu = await get_raidmode_menu(int(callback_data['gid']), title)
 
     await cquery.answer()
 
@@ -959,18 +994,28 @@ async def call_back(cquery: CallbackQuery, callback_data: dict) -> None:
     gid = callback_data["gid"]
     chat = await bot.get_chat(gid)
     title = chat.title
-    text = "Configuration of group " + title
+    text = get_message(gid, MessageTemplate.CONFIG_MENU_HEADER_TEMPLATE) % (title)
     menu = InlineKeyboardMarkup(resize_keyboard=True)
     current_config[cquery.from_user.id] = callback_data["gid"]
+
+    captcha_button_text = get_message(gid, MessageTemplate.CAPTCHA_MENU_TEMPLTE)
+    welcome_button_text = get_message(gid, MessageTemplate.WELCOME_MSG_MENU_TEMPLATE)
+    rules_button_text = get_message(gid, MessageTemplate.RULES_MENU_TEMPLATE)
+    warnings_button_text = get_message(gid, MessageTemplate.WARNINGS_MENU_TEMPLATE)
+    flood_mode_button_text = get_message(gid, MessageTemplate.FLOOD_MODE_MENU_TEMPLATE)
+    logging_button_text = get_message(gid, MessageTemplate.LOGGING_MENU_TEMPLATE)
+    close_button_text = get_message(gid, MessageTemplate.CLOSE_BUTTON_TEMPLATE)
+
+
     captcha_button = InlineKeyboardButton(
-        "Captcha ✔",
+        f"{ captcha_button_text } ✔",
         callback_data=bot_config_callback.new(
             action="config_captcha", gid=callback_data["gid"], group_title=""
         )
     )
 
     welcome_button = InlineKeyboardButton(
-        "Willkommensnachricht 💬",
+        f"{ welcome_button_text } 💬",
         callback_data=bot_config_callback.new(
             action="open_welcome_message_menu", gid=callback_data["gid"], group_title=""
         )
@@ -978,7 +1023,7 @@ async def call_back(cquery: CallbackQuery, callback_data: dict) -> None:
 
     
     rules_button = InlineKeyboardButton(
-        "Regeln 📜",
+        f"{ rules_button_text} 📜",
         callback_data=bot_config_callback.new(
             action="open_rules_menu", gid=callback_data["gid"], group_title=""
         )
@@ -986,27 +1031,27 @@ async def call_back(cquery: CallbackQuery, callback_data: dict) -> None:
 
     
     warnings_button = InlineKeyboardButton(
-        "Warnungen ⚠️",
+        f"{ warnings_button_text } ⚠️",
         callback_data=bot_config_callback.new(
             action="open_warning_menu", gid=callback_data["gid"], group_title=""
         )
     )
 
     raidmode_button = InlineKeyboardButton(
-        "Raid mode 🛡️ ",
+        f"{ flood_mode_button_text } 🛡️ ",
         callback_data=bot_config_callback.new(
             action="config_raidmode", gid=callback_data["gid"], group_title=""
         )
     )
 
     log_button = InlineKeyboardButton(
-        "Logging 🪵",
+        f"{ logging_button_text} 🪵",
         callback_data=bot_config_callback.new(
             action="config_logging", gid=callback_data["gid"], group_title=""
         )
     )
     back_button = InlineKeyboardButton(
-        "Close ❌",
+        f"{ close_button_text } ❌",
         callback_data=single_callback.new(
             action="close"
         )
@@ -1020,17 +1065,21 @@ async def call_back(cquery: CallbackQuery, callback_data: dict) -> None:
 @dispatcher.message_handler(commands=["start"])
 async def start_command(message: Message):
     menu = InlineKeyboardMarkup(resize_keyboard=True)
+    gid = message.chat.id
 
     reply = ""
+
     if "group" in message.chat.type:
-        reply = "Das Konfigurationsmenü kannst du nur im privaten Chat öffnen!"
+        reply = get_message(gid, MessageTemplate.OPEN_MENU_IN_PRIVATE_TEMPLATE)
+        button_text = get_message(gid, MessageTemplate.OPEN_CHAT_BUTTON_TEMPLATE)
         chat = InlineKeyboardButton(
-            "Chat öffnen",
+            button_text,
             url=f"https://t.me/{botname}"
         )
         menu = menu.row(chat)
     else:
-        reply = "Hello, %m!\n\nAdd me to your group and add me as an administrator to secure your group.\n\nNeed help? /help"
+
+        reply = get_message(gid, MessageTemplate.ADD_BOT_AS_ADMIN_TEMPLATE)
 
         gids =  config.get_privileged_user_groups(message.from_user.id)
 
@@ -1098,18 +1147,15 @@ async def change_welcome_message(message: Message, state: FSMContext):
     text = message.text
     gid = current_config[message.from_user.id]
 
+    welcome_msg = get_message(gid)
+
     await config.set_welcome_message(int(gid), text)
     await state.finish()
-    await bot.send_message(uid, "Welcome message has been changed!")
+    await bot.send_message(uid, welcome_msg)
 
 if __name__ == "__main__":
     database.setup_database(DATABASE)
     conf = database.get_conf_from_db(DATABASE)
-
-    print("1", conf)
-
-    print("2", conf|CONFIG)
-    print()
     config.setup({**conf, **CONFIG})
 
     loop = asyncio.get_event_loop()

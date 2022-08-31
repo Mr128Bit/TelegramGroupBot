@@ -1,5 +1,6 @@
 from captcha import CaptchaType,CaptchaPunishment
 from permissions import AdminPermission
+from enums import *
 from aiogram.utils.exceptions import (
     BotKicked,
     ChatNotFound
@@ -28,6 +29,9 @@ async def get_autoraid_treshold(gid):
 
 async def setup_group(gid, uid):
     print(CONFIG)
+
+    lang = Language.ENGLISH.value
+
     CONFIG["groups"][gid] = {
             "is_pro" : False,
             "privileged": [uid],
@@ -46,9 +50,9 @@ async def setup_group(gid, uid):
             "captcha_punishment": CaptchaPunishment.KICK.value,
             "captcha_punishment_time": 0,
             "welcome_active": True,
-            "captcha_text": CONFIG["message_templates"]["captcha_template"],
-            "captcha_button_text": CONFIG["message_templates"]["button_text_template"],
-            "welcome_text": CONFIG["message_templates"]["welcome_template"],
+            "captcha_text": CONFIG["message_templates"][lang]["captcha_template"],
+            "captcha_button_text": CONFIG["message_templates"][lang]["button_text_template"],
+            "welcome_text": CONFIG["message_templates"][lang]["welcome_template"],
             "privileges_updated" : False,
             "bot_kicked": False
     }
@@ -201,7 +205,6 @@ def is_welcome_active(gid):
 
 def set_bot_kicked(gid):
     CONFIG["groups"][gid]["bot_kicked"] = True
-
 
 def auto_raid_enabled(gid):
     if CONFIG["groups"][int(gid)]["auto_raid_detection"]:

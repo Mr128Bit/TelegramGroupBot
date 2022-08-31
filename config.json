@@ -1,10 +1,29 @@
 {
     "bot_hash": "",
-    "bot_owner":[
+    "bot_owner":[ 
     ],
     "message_templates":{
-       "captcha_template":"Hello, {mention}, please click on 'Unlock' to join the chat!",
-       "button_text_template":"Unlock",
-       "welcome_template":"Welcome {mention} in our group, please stay respectful.\nType /r to display the rules"
+      "en": {
+         "captcha_template" :"Hello, {mention}, please click on 'Unlock' to join the chat!",
+         "button_text_template":"Unlock",
+         "welcome_template":"Welcome {mention} in our group, please stay respectful.\nType /r to display the rules",
+         "welcome_changed_template" : "Welcome message has been changed!",
+         "add_bot_as_admin_template" : "Hello, %m!\n\nAdd me to your group and add me as an administrator to secure your group.\n\nNeed help? /help",
+         "open_menu_in_private_template" : "The configuration menu can only be opened in the private chat",
+         "captcha_menu_template" : "Captcha",
+         "welcome_msg_menu_template": "Welcome message",
+         "rules_menu_template":  "Rules", 
+         "warnings_menu_template": "Warnings",
+         "flood_mode_menu_template": "Flood mode",
+         "logging_menu_template": "Logging",
+         "close_button_template" : "Close",
+         "open_chat_button_template" : "Open chat",
+         "config_menu_header_template": "Configuration of group %s",
+         "config_menu_module_header_template": "Configuration of group <b>{%s}</b>\n\nModule: %s",
+         "config_captcha_type_header_template": "Choose a captcha method:",
+         "captcha_text_changed_template": "Captcha text has been changed!",
+         "captcha_button_text_changed_template": "Captcha button text has been changed!"
+
+      }
     }
  }
