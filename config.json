@@ -1,0 +1,10 @@
+{
+    "bot_hash": "",
+    "bot_owner":[
+    ],
+    "message_templates":{
+       "captcha_template":"Hello, {mention}, please click on 'Unlock' to join the chat!",
+       "button_text_template":"Unlock",
+       "welcome_template":"Welcome {mention} in our group, please stay respectful.\nType /r to display the rules"
+    }
+ }
